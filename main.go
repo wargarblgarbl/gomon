@@ -1,6 +1,5 @@
 package main
 import (
-//	"fmt"
 	"os/exec"
 	"flag"
 	"io/ioutil"
@@ -15,10 +14,8 @@ var scriptDir = flag.String("sdir", "/tmp/test-dir/", "directory for the scripts
 var tcpPort = flag.String("tport", "6556", "standard port for tcp server")
 
 
-
-func parsescripts()(ouput []string) {
+func parsescripts(output chan string) {
 	flag.Parse()
-	var output []string
 	files, _:= ioutil.ReadDir(*scriptDir)
 		for _, ff := range files {
 			scriptname := *scriptDir+ff.Name()
@@ -29,14 +26,13 @@ func parsescripts()(ouput []string) {
 			if err != nil {
 				log.Print(err)
 			}
-			add := out.String()
-			output = append(output, add)
+			output <- out.String()
 		}
-	return output
+	close(output)
 }
 
-func handleRequest(conn net.Conn) {
-	for _, f := range parsescripts() {
+func handleRequest(conn net.Conn, rs chan string) {
+	for  f := range rs {
 		conn.Write([]byte(f))
 	}
 		conn.Close()
@@ -48,16 +44,16 @@ func checkMK() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer l.Close()
+	defer l.Close() 
 	for {
+		var cs = make(chan string)
 		conn, err := l.Accept()
 		if err != nil {
 			log.Print(err)
 		}
-		go handleRequest(conn)
+		go parsescripts(cs)
+		go handleRequest(conn, cs)
 	}
-
-	
 }
 
 
